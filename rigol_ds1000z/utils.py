@@ -19,14 +19,20 @@ def find_visas():
     for visa_backend in ["@ivi", "@py"]:
         try:
             visa_manager = ResourceManager(visa_backend)
-        except LibraryError:
-            pass
+        except (LibraryError, OSError, ValueError):
+            # The backend is unavailable (e.g. no NI-VISA library installed for
+            # "@ivi", which raises a plain OSError rather than a LibraryError);
+            # skip it instead of letting the error propagate.
+            continue
 
         for visa_name in visa_manager.list_resources():
             try:
                 visa_resource = visa_manager.open_resource(visa_name)
-                match = search(RIGOL_IDN_REGEX, visa_resource.query("*IDN?"))
-                if match:
+            except VisaIOError:
+                continue
+
+            try:
+                if search(RIGOL_IDN_REGEX, visa_resource.query("*IDN?")):
                     visas.append((visa_name, visa_backend))
             except VisaIOError:
                 pass

@@ -1,9 +1,25 @@
 from collections import namedtuple
+from math import nan
 from time import sleep
 from typing import Optional, Union
 
 MEASURE = namedtuple("MEASURE", "source counter item value statistics")
 STATISTICS = namedtuple("STATISTICS", "maximum minimum current average deviation")
+
+
+def _to_float(response):
+    """Parse a measurement query response to float.
+
+    The scope returns non-numeric text for a measurement it cannot compute
+    (e.g. ``"measure error!"`` for a rise time with no clean edge on screen).
+    Treat any non-numeric response as ``nan`` ("unavailable") instead of
+    crashing — it sits alongside the ``9.9e37`` invalid-measurement sentinel the
+    scope uses elsewhere.
+    """
+    try:
+        return float(response)
+    except (TypeError, ValueError):
+        return nan
 
 # Measurement item mnemonics accepted by ``item`` (DS1000Z programming guide).
 ITEMS = (
@@ -71,24 +87,29 @@ def measure(
 
     counter_source = oscope.query(":MEAS:COUN:SOUR?")
     counter_value = (
-        None if counter_source == "OFF" else float(oscope.query(":MEAS:COUN:VAL?"))
+        None if counter_source == "OFF" else _to_float(oscope.query(":MEAS:COUN:VAL?"))
     )
 
     value = None
     statistics_query = None
     if item is not None:
         src = _source_token(source_query)
-        value = float(oscope.query(":MEAS:ITEM? {:s},{:s}".format(item, src)))
+        value = _to_float(oscope.query(":MEAS:ITEM? {:s},{:s}".format(item, src)))
 
         if statistics:
             oscope.write(":MEAS:STAT:DISP 1")
             oscope.write(":MEAS:STAT:ITEM {:s},{:s}".format(item, src))
+
+            def _stat(kind):
+                query = ":MEAS:STAT:ITEM? {:s},{:s}".format(kind, item)
+                return _to_float(oscope.query(query))
+
             statistics_query = STATISTICS(
-                maximum=float(oscope.query(":MEAS:STAT:ITEM? MAX,{:s}".format(item))),
-                minimum=float(oscope.query(":MEAS:STAT:ITEM? MIN,{:s}".format(item))),
-                current=float(oscope.query(":MEAS:STAT:ITEM? CURR,{:s}".format(item))),
-                average=float(oscope.query(":MEAS:STAT:ITEM? AVER,{:s}".format(item))),
-                deviation=float(oscope.query(":MEAS:STAT:ITEM? DEV,{:s}".format(item))),
+                maximum=_stat("MAX"),
+                minimum=_stat("MIN"),
+                current=_stat("CURR"),
+                average=_stat("AVER"),
+                deviation=_stat("DEV"),
             )
 
     return MEASURE(

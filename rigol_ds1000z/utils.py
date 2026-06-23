@@ -6,7 +6,7 @@ import matplotlib.image as mpimg  # type: ignore
 import matplotlib.pyplot as plt  # type: ignore
 import numpy as np
 from pyvisa import ResourceManager
-from pyvisa.errors import LibraryError, VisaIOError
+from pyvisa.errors import LibraryError
 
 
 def find_visas():
@@ -25,16 +25,27 @@ def find_visas():
             # skip it instead of letting the error propagate.
             continue
 
-        for visa_name in visa_manager.list_resources():
+        try:
+            resource_names = visa_manager.list_resources()
+        except Exception:
+            # Enumerating a backend can itself fail (e.g. a wedged USB layer);
+            # skip the whole backend rather than crashing discovery.
+            continue
+
+        for visa_name in resource_names:
             try:
                 visa_resource = visa_manager.open_resource(visa_name)
-            except VisaIOError:
+            except Exception:
+                # Any backend (serial/USB/TCPIP) can fail to open a given
+                # resource — a busy serial port (e.g. a Bluetooth /dev/cu.*),
+                # missing permissions, or no device behind it. Discovery is
+                # best-effort: skip this resource and keep scanning.
                 continue
 
             try:
                 if search(RIGOL_IDN_REGEX, visa_resource.query("*IDN?")):
                     visas.append((visa_name, visa_backend))
-            except VisaIOError:
+            except Exception:
                 pass
             finally:
                 visa_resource.close()

@@ -13,6 +13,7 @@ Click the links below or in the sidebar to see how the available functional inte
    channel.rst
    timebase.rst
    trigger.rst
+   measure.rst
    display.rst
    waveform.rst
    ieee.rst

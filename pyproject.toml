@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rigol-ds1000z"
-version = "0.3.0"
+version = "0.4.0"
 description = "Python library for interfacing with Rigol DS1000Z series oscilloscopes."
 authors = ["amosborne <amosborne@users.noreply.github.com>"]
 license = "MIT"
